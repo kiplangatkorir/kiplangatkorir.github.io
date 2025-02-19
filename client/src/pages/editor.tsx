@@ -7,6 +7,8 @@ import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import MarkdownEditor from "@/components/markdown-editor";
+import CategorySelect from "@/components/category-select";
+import TagSelect from "@/components/tag-select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -26,6 +28,8 @@ export default function Editor() {
     defaultValues: {
       title: "",
       content: "",
+      categoryId: undefined,
+      tagIds: [],
     },
   });
 
@@ -64,6 +68,23 @@ export default function Editor() {
             <label className="text-sm font-medium">Title</label>
             <Input {...form.register("title")} />
           </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Category</label>
+            <CategorySelect
+              value={form.watch("categoryId")}
+              onChange={(value) => form.setValue("categoryId", value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Tags</label>
+            <TagSelect
+              selectedIds={form.watch("tagIds") || []}
+              onChange={(ids) => form.setValue("tagIds", ids)}
+            />
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Content</label>
             <MarkdownEditor
@@ -71,6 +92,7 @@ export default function Editor() {
               onChange={(value) => form.setValue("content", value)}
             />
           </div>
+
           <Button type="submit">
             {isEditing ? "Update Post" : "Create Post"}
           </Button>

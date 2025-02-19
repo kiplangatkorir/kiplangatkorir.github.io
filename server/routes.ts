@@ -1,9 +1,10 @@
 import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
-import { insertPostSchema, insertCommentSchema } from "@shared/schema";
+import { insertPostSchema, insertCommentSchema, insertCategorySchema, insertTagSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express) {
+  // Existing post routes
   app.get("/api/posts", async (_req, res) => {
     const posts = await storage.getAllPosts();
     res.json(posts);
@@ -20,7 +21,10 @@ export async function registerRoutes(app: Express) {
     const id = parseInt(req.params.id);
     const post = await storage.getPost(id);
     if (!post) return res.status(404).json({ message: "Post not found" });
-    res.json(post);
+
+    // Get post tags
+    const tags = await storage.getPostTags(id);
+    res.json({ ...post, tags });
   });
 
   app.post("/api/posts", async (req, res) => {
@@ -50,7 +54,7 @@ export async function registerRoutes(app: Express) {
     res.status(204).end();
   });
 
-  // New routes for comments
+  // Existing comment routes
   app.get("/api/posts/:postId/comments", async (req, res) => {
     const postId = parseInt(req.params.postId);
     const comments = await storage.getPostComments(postId);
@@ -72,6 +76,42 @@ export async function registerRoutes(app: Express) {
     const success = await storage.deleteComment(id);
     if (!success) return res.status(404).json({ message: "Comment not found" });
     res.status(204).end();
+  });
+
+  // New category routes
+  app.get("/api/categories", async (_req, res) => {
+    const categories = await storage.getAllCategories();
+    res.json(categories);
+  });
+
+  app.post("/api/categories", async (req, res) => {
+    const result = insertCategorySchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ message: "Invalid category data" });
+    }
+    const category = await storage.createCategory(result.data);
+    res.status(201).json(category);
+  });
+
+  // New tag routes
+  app.get("/api/tags", async (_req, res) => {
+    const tags = await storage.getAllTags();
+    res.json(tags);
+  });
+
+  app.post("/api/tags", async (req, res) => {
+    const result = insertTagSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ message: "Invalid tag data" });
+    }
+    const tag = await storage.createTag(result.data);
+    res.status(201).json(tag);
+  });
+
+  app.get("/api/posts/:postId/tags", async (req, res) => {
+    const postId = parseInt(req.params.postId);
+    const tags = await storage.getPostTags(postId);
+    res.json(tags);
   });
 
   return createServer(app);

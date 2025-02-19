@@ -1,4 +1,4 @@
-import { posts, type Post, type InsertPost } from "@shared/schema";
+import { posts, comments, type Post, type InsertPost, type Comment, type InsertComment } from "@shared/schema";
 import { db } from "./db";
 import { eq, or, sql } from "drizzle-orm";
 
@@ -9,6 +9,10 @@ export interface IStorage {
   updatePost(id: number, post: InsertPost): Promise<Post | undefined>;
   deletePost(id: number): Promise<boolean>;
   searchPosts(query: string): Promise<Post[]>;
+  // Add new methods for comments
+  getPostComments(postId: number): Promise<Comment[]>;
+  createComment(comment: InsertComment): Promise<Comment>;
+  deleteComment(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -52,6 +56,28 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(posts.createdAt);
+  }
+
+  // New methods for comments
+  async getPostComments(postId: number): Promise<Comment[]> {
+    return await db
+      .select()
+      .from(comments)
+      .where(eq(comments.postId, postId))
+      .orderBy(comments.createdAt);
+  }
+
+  async createComment(insertComment: InsertComment): Promise<Comment> {
+    const [comment] = await db.insert(comments).values(insertComment).returning();
+    return comment;
+  }
+
+  async deleteComment(id: number): Promise<boolean> {
+    const [comment] = await db
+      .delete(comments)
+      .where(eq(comments.id, id))
+      .returning();
+    return !!comment;
   }
 }
 

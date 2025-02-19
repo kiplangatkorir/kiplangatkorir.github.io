@@ -8,6 +8,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
+import CommentsSection from "@/components/comments-section";
 
 export default function PostPage() {
   const [, params] = useRoute<{ id: string }>("/posts/:id");
@@ -47,24 +48,28 @@ export default function PostPage() {
   if (!post) return <div>Post not found</div>;
 
   return (
-    <article className="prose prose-lg max-w-none">
-      <div className="flex items-center justify-between">
-        <h1 className="mb-2">{post.title}</h1>
-        <div className="flex gap-2">
-          <Link href={`/edit/${post.id}`}>
-            <Button variant="outline" size="icon">
-              <Pencil className="h-4 w-4" />
+    <div className="space-y-12">
+      <article className="prose prose-lg max-w-none">
+        <div className="flex items-center justify-between">
+          <h1 className="mb-2">{post.title}</h1>
+          <div className="flex gap-2">
+            <Link href={`/edit/${post.id}`}>
+              <Button variant="outline" size="icon">
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Button variant="destructive" size="icon" onClick={handleDelete}>
+              <Trash2 className="h-4 w-4" />
             </Button>
-          </Link>
-          <Button variant="destructive" size="icon" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          </div>
         </div>
-      </div>
-      <div className="text-sm text-muted-foreground mb-8">
-        {new Date(post.createdAt).toLocaleDateString()}
-      </div>
-      <ReactMarkdown>{post.content}</ReactMarkdown>
-    </article>
+        <div className="text-sm text-muted-foreground mb-8">
+          {new Date(post.createdAt).toLocaleDateString()}
+        </div>
+        <ReactMarkdown>{post.content}</ReactMarkdown>
+      </article>
+
+      <CommentsSection postId={post.id} />
+    </div>
   );
 }

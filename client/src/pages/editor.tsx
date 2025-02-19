@@ -17,7 +17,8 @@ export default function Editor() {
   const isEditing = Boolean(params?.id);
 
   const { data: existingPost } = useQuery<Post>({
-    queryKey: isEditing ? [`/api/posts/${params?.id}`] : null,
+    queryKey: [`/api/posts/${params?.id}`],
+    enabled: isEditing,
   });
 
   const form = useForm<InsertPost>({

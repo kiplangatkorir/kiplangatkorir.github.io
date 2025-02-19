@@ -1,19 +1,29 @@
-import { posts, comments, categories, tags, postsTags, type Post, type InsertPost, type Comment, type InsertComment, type Category, type InsertCategory, type Tag, type InsertTag } from "@shared/schema";
+import { users, posts, comments, categories, tags, postsTags, type User, type InsertUser, type Post, type InsertPost, type Comment, type InsertComment, type Category, type InsertCategory, type Tag, type InsertTag } from "@shared/schema";
 import { db } from "./db";
 import { eq, or, sql, and } from "drizzle-orm";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
+
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
+  // User methods
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+
   // Post methods
   getAllPosts(): Promise<Post[]>;
   getPost(id: number): Promise<Post | undefined>;
-  createPost(post: InsertPost): Promise<Post>;
+  createPost(post: InsertPost & { userId: number }): Promise<Post>;
   updatePost(id: number, post: InsertPost): Promise<Post | undefined>;
   deletePost(id: number): Promise<boolean>;
   searchPosts(query: string): Promise<Post[]>;
 
   // Comment methods
   getPostComments(postId: number): Promise<Comment[]>;
-  createComment(comment: InsertComment): Promise<Comment>;
+  createComment(comment: InsertComment & { userId: number }): Promise<Comment>;
   deleteComment(id: number): Promise<boolean>;
 
   // Category methods
@@ -26,9 +36,40 @@ export interface IStorage {
   getTag(id: number): Promise<Tag | undefined>;
   createTag(tag: InsertTag): Promise<Tag>;
   getPostTags(postId: number): Promise<Tag[]>;
+
+  // Session store
+  sessionStore: session.Store;
 }
 
 export class DatabaseStorage implements IStorage {
+  sessionStore: session.Store;
+
+  constructor() {
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
+    });
+  }
+
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
   // Existing post methods
   async getAllPosts(): Promise<Post[]> {
     return await db.select().from(posts).orderBy(posts.createdAt);
@@ -39,7 +80,7 @@ export class DatabaseStorage implements IStorage {
     return post;
   }
 
-  async createPost(insertPost: InsertPost): Promise<Post> {
+  async createPost(insertPost: InsertPost & { userId: number }): Promise<Post> {
     const { tagIds, ...postData } = insertPost;
     const [post] = await db.insert(posts).values(postData).returning();
 
@@ -103,7 +144,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(comments.createdAt);
   }
 
-  async createComment(insertComment: InsertComment): Promise<Comment> {
+  async createComment(insertComment: InsertComment & { userId: number }): Promise<Comment> {
     const [comment] = await db.insert(comments).values(insertComment).returning();
     return comment;
   }
@@ -116,7 +157,7 @@ export class DatabaseStorage implements IStorage {
     return !!comment;
   }
 
-  // New category methods
+  // Existing category methods
   async getAllCategories(): Promise<Category[]> {
     return await db.select().from(categories).orderBy(categories.name);
   }
@@ -137,7 +178,7 @@ export class DatabaseStorage implements IStorage {
     return newCategory;
   }
 
-  // New tag methods
+  // Existing tag methods
   async getAllTags(): Promise<Tag[]> {
     return await db.select().from(tags).orderBy(tags.name);
   }

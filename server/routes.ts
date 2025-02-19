@@ -2,8 +2,19 @@ import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
 import { insertPostSchema, insertCommentSchema, insertCategorySchema, insertTagSchema } from "@shared/schema";
+import { setupAuth } from "./auth";
+
+function requireAuth(req: Express.Request, res: Express.Response, next: Express.NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  next();
+}
 
 export async function registerRoutes(app: Express) {
+  // Set up authentication routes and middleware
+  setupAuth(app);
+
   // Existing post routes
   app.get("/api/posts", async (_req, res) => {
     const posts = await storage.getAllPosts();
@@ -27,12 +38,16 @@ export async function registerRoutes(app: Express) {
     res.json({ ...post, tags });
   });
 
-  app.post("/api/posts", async (req, res) => {
+  // Protected route
+  app.post("/api/posts", requireAuth, async (req, res) => {
     const result = insertPostSchema.safeParse(req.body);
     if (!result.success) {
       return res.status(400).json({ message: "Invalid post data" });
     }
-    const post = await storage.createPost(result.data);
+    const post = await storage.createPost({
+      ...result.data,
+      userId: req.user!.id,
+    });
     res.status(201).json(post);
   });
 
@@ -61,13 +76,17 @@ export async function registerRoutes(app: Express) {
     res.json(comments);
   });
 
-  app.post("/api/posts/:postId/comments", async (req, res) => {
+  // Protected route
+  app.post("/api/posts/:postId/comments", requireAuth, async (req, res) => {
     const postId = parseInt(req.params.postId);
     const result = insertCommentSchema.safeParse({ ...req.body, postId });
     if (!result.success) {
       return res.status(400).json({ message: "Invalid comment data" });
     }
-    const comment = await storage.createComment(result.data);
+    const comment = await storage.createComment({
+      ...result.data,
+      userId: req.user!.id,
+    });
     res.status(201).json(comment);
   });
 

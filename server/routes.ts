@@ -3,6 +3,10 @@ import { createServer } from "http";
 import { storage } from "./storage";
 import { insertPostSchema, insertCommentSchema, insertCategorySchema, insertTagSchema } from "@shared/schema";
 import { setupAuth } from "./auth";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import express from 'express';
 
 function requireAuth(req: Express.Request, res: Express.Response, next: Express.NextFunction) {
   if (!req.isAuthenticated()) {
@@ -11,9 +15,53 @@ function requireAuth(req: Express.Request, res: Express.Response, next: Express.
   next();
 }
 
+// Configure multer for handling file uploads
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const uploadDir = path.join(process.cwd(), "uploads");
+      // Create uploads directory if it doesn't exist
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      // Generate unique filename
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+  }),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only image files
+    if (!file.mimetype.startsWith('image/')) {
+      cb(new Error('Only image files are allowed'));
+      return;
+    }
+    cb(null, true);
+  }
+});
+
 export async function registerRoutes(app: Express) {
   // Set up authentication routes and middleware
   setupAuth(app);
+
+  // Serve uploaded files statically
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
+  // New image upload endpoint
+  app.post("/api/upload", requireAuth, upload.single('image'), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Return the URL for the uploaded file
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ url: fileUrl });
+  });
 
   // Existing post routes
   app.get("/api/posts", async (_req, res) => {

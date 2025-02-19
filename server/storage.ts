@@ -1,4 +1,6 @@
-import { type Post, type InsertPost } from "@shared/schema";
+import { posts, type Post, type InsertPost } from "@shared/schema";
+import { db } from "./db";
+import { eq, or, sql } from "drizzle-orm";
 
 export interface IStorage {
   getAllPosts(): Promise<Post[]>;
@@ -9,66 +11,48 @@ export interface IStorage {
   searchPosts(query: string): Promise<Post[]>;
 }
 
-export class MemStorage implements IStorage {
-  private posts: Map<number, Post>;
-  private currentId: number;
-
-  constructor() {
-    this.posts = new Map();
-    this.currentId = 1;
-  }
-
+export class DatabaseStorage implements IStorage {
   async getAllPosts(): Promise<Post[]> {
-    return Array.from(this.posts.values()).sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    return await db.select().from(posts).orderBy(posts.createdAt);
   }
 
   async getPost(id: number): Promise<Post | undefined> {
-    return this.posts.get(id);
+    const [post] = await db.select().from(posts).where(eq(posts.id, id));
+    return post;
   }
 
   async createPost(insertPost: InsertPost): Promise<Post> {
-    const id = this.currentId++;
-    const now = new Date();
-    const post: Post = { 
-      ...insertPost, 
-      id, 
-      createdAt: now, 
-      updatedAt: now 
-    };
-    this.posts.set(id, post);
+    const [post] = await db.insert(posts).values(insertPost).returning();
     return post;
   }
 
   async updatePost(id: number, insertPost: InsertPost): Promise<Post | undefined> {
-    const existingPost = this.posts.get(id);
-    if (!existingPost) return undefined;
-
-    const updatedPost: Post = {
-      ...existingPost,
-      ...insertPost,
-      updatedAt: new Date()
-    };
-    this.posts.set(id, updatedPost);
-    return updatedPost;
+    const [post] = await db
+      .update(posts)
+      .set({ ...insertPost, updatedAt: new Date() })
+      .where(eq(posts.id, id))
+      .returning();
+    return post;
   }
 
   async deletePost(id: number): Promise<boolean> {
-    return this.posts.delete(id);
+    const [post] = await db.delete(posts).where(eq(posts.id, id)).returning();
+    return !!post;
   }
 
   async searchPosts(query: string): Promise<Post[]> {
     const lowercaseQuery = query.toLowerCase();
-    return Array.from(this.posts.values())
-      .filter(post => 
-        post.title.toLowerCase().includes(lowercaseQuery) ||
-        post.content.toLowerCase().includes(lowercaseQuery)
+    return await db
+      .select()
+      .from(posts)
+      .where(
+        or(
+          sql`lower(${posts.title}) like ${`%${lowercaseQuery}%`}`,
+          sql`lower(${posts.content}) like ${`%${lowercaseQuery}%`}`
+        )
       )
-      .sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      .orderBy(posts.createdAt);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

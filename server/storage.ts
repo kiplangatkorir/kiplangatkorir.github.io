@@ -3,6 +3,7 @@ import { db } from "./db";
 import { eq, or, sql, and } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
+import { Client } from "pg";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -42,10 +43,19 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
+  private client: Client;
 
   constructor() {
+    this.client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    this.client.connect();
+    
     this.sessionStore = new PostgresSessionStore({
-      pool: process.env.DATABASE_URL,
+      pool: this.client,
       createTableIfMissing: true,
     });
   }

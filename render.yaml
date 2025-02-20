@@ -2,8 +2,11 @@ services:
   - type: web
     name: personal-blog
     env: node
+    nodeVersion: 18
     buildCommand: npm install && npm run build
     startCommand: npm run start
+    port: 3000
+    plan: starter
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,3 +15,6 @@ services:
       - key: SESSION_SECRET
         generateValue: true
     healthCheckPath: /api/health
+    resources:
+      cpu: 1
+      memory: 1GB

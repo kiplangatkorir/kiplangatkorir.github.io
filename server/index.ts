@@ -45,7 +45,14 @@ app.use((req, res, next) => {
     log("Database connection successful");
 
     const server = await registerRoutes(app);
-    
+
+    // Set up Vite middleware for development
+    if (process.env.NODE_ENV !== "production") {
+      await setupVite(app, server);
+    } else {
+      serveStatic(app);
+    }
+
     const port = process.env.PORT || 3000;
     server.listen(port, () => {
       log(`Server is running on port ${port}`);

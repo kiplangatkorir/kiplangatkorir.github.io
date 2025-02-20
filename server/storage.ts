@@ -2,6 +2,32 @@ import { users, posts, comments, categories, tags, postsTags, type User, type In
 import { db } from "./db";
 import { eq, or, sql, and } from "drizzle-orm";
 import session from "express-session";
+import { logger } from './logger';
+
+class MemoryStore extends session.Store {
+  private sessions: Map<string, any>;
+
+  constructor() {
+    super();
+    this.sessions = new Map();
+    logger.warn('Using MemoryStore for sessions. This is not suitable for production.');
+  }
+
+  get(sid: string, callback: (err: any, session?: any) => void): void {
+    const data = this.sessions.get(sid);
+    callback(null, data);
+  }
+
+  set(sid: string, session: any, callback?: (err?: any) => void): void {
+    this.sessions.set(sid, session);
+    if (callback) callback();
+  }
+
+  destroy(sid: string, callback?: (err?: any) => void): void {
+    this.sessions.delete(sid);
+    if (callback) callback();
+  }
+}
 
 export interface IStorage {
   // User methods
@@ -41,8 +67,7 @@ export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    // Using MemoryStore for development
-    this.sessionStore = new session.MemoryStore();
+    this.sessionStore = new MemoryStore();
   }
 
   // User methods

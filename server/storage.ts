@@ -3,8 +3,6 @@ import { db } from "./db";
 import { eq, or, sql, and } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { neon } from "@neondatabase/serverless";
-import { Pool } from "pg";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -44,18 +42,13 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
-  private sql: any;
-  private pool: Pool;
 
   constructor() {
-    this.sql = neon(process.env.DATABASE_URL!);
-    this.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: true
-    });
-    
     this.sessionStore = new PostgresSessionStore({
-      pool: this.pool,
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      },
       createTableIfMissing: true,
     });
   }

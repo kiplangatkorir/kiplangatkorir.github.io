@@ -29,6 +29,9 @@ class MemoryStore extends session.Store {
   }
 }
 
+// Create a single instance of the memory store
+export const sessionStore = new MemoryStore();
+
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
@@ -58,18 +61,9 @@ export interface IStorage {
   getTag(id: number): Promise<Tag | undefined>;
   createTag(tag: InsertTag): Promise<Tag>;
   getPostTags(postId: number): Promise<Tag[]>;
-
-  // Session store
-  sessionStore: session.Store;
 }
 
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.Store;
-
-  constructor() {
-    this.sessionStore = new MemoryStore();
-  }
-
   // User methods
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));

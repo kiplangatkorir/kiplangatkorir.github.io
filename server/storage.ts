@@ -102,8 +102,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deletePost(id: number): Promise<boolean> {
-    const result = await db.delete(posts).where(eq(posts.id, id));
-    return result.rowCount > 0;
+    const result = await db.delete(posts).where(eq(posts.id, id)).returning();
+    return result.length > 0;
   }
 
   async searchPosts(query: string): Promise<Post[]> {
@@ -125,8 +125,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteComment(id: number): Promise<boolean> {
-    const result = await db.delete(comments).where(eq(comments.id, id));
-    return result.rowCount > 0;
+    const result = await db.delete(comments).where(eq(comments.id, id)).returning();
+    return result.length > 0;
   }
 
   async getAllCategories(): Promise<Category[]> {
@@ -162,6 +162,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: tags.id,
         name: tags.name,
+        createdAt: tags.createdAt,
       })
       .from(postsTags)
       .innerJoin(tags, eq(tags.id, postsTags.tagId))

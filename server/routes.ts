@@ -7,6 +7,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import express from 'express';
+import { router } from "./routes";
 
 function requireAuth(req: Express.Request, res: Express.Response, next: Express.NextFunction) {
   if (!req.isAuthenticated()) {
@@ -185,6 +186,8 @@ export async function registerRoutes(app: Express) {
     const tags = await storage.getPostTags(postId);
     res.json(tags);
   });
+
+  app.use('/api', router);
 
   return createServer(app);
 }

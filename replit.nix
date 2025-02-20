@@ -1,5 +1,5 @@
 {pkgs}: {
   deps = [
-    pkgs.postgresql
+    pkgs.postgresql 
   ];
 }

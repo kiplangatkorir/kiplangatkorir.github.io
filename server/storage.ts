@@ -4,6 +4,7 @@ import { eq, or, sql, and } from "drizzle-orm";
 import session from "express-session";
 import { logger } from './logger';
 
+// Session Store Implementation
 class MemoryStore extends session.Store {
   private sessions: Map<string, any>;
 
@@ -29,9 +30,10 @@ class MemoryStore extends session.Store {
   }
 }
 
-// Create a single instance of the memory store
+// Create and export session store instance
 export const sessionStore = new MemoryStore();
 
+// Database Storage Interface
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
@@ -63,29 +65,25 @@ export interface IStorage {
   getPostTags(postId: number): Promise<Tag[]>;
 }
 
+// Database Storage Implementation
 export class DatabaseStorage implements IStorage {
-  // User methods
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.username, username));
+    const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+  async createUser(user: InsertUser): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
   }
 
-  // Existing post methods
   async getAllPosts(): Promise<Post[]> {
-    return await db.select().from(posts).orderBy(posts.createdAt);
+    return await db.select().from(posts);
   }
 
   async getPost(id: number): Promise<Post | undefined> {
@@ -93,107 +91,60 @@ export class DatabaseStorage implements IStorage {
     return post;
   }
 
-  async createPost(insertPost: InsertPost & { userId: number }): Promise<Post> {
-    const { tagIds, ...postData } = insertPost;
-    const [post] = await db.insert(posts).values(postData).returning();
-
-    if (tagIds && tagIds.length > 0) {
-      await db.insert(postsTags).values(
-        tagIds.map(tagId => ({ postId: post.id, tagId }))
-      );
-    }
-
-    return post;
+  async createPost(post: InsertPost & { userId: number }): Promise<Post> {
+    const [newPost] = await db.insert(posts).values(post).returning();
+    return newPost;
   }
 
-  async updatePost(id: number, insertPost: InsertPost): Promise<Post | undefined> {
-    const { tagIds, ...postData } = insertPost;
-
-    // Update post
-    const [post] = await db
-      .update(posts)
-      .set({ ...postData, updatedAt: new Date() })
-      .where(eq(posts.id, id))
-      .returning();
-
-    if (!post) return undefined;
-
-    // Update tags
-    await db.delete(postsTags).where(eq(postsTags.postId, id));
-    if (tagIds && tagIds.length > 0) {
-      await db.insert(postsTags).values(
-        tagIds.map(tagId => ({ postId: id, tagId }))
-      );
-    }
-
-    return post;
+  async updatePost(id: number, post: InsertPost): Promise<Post | undefined> {
+    const [updatedPost] = await db.update(posts).set(post).where(eq(posts.id, id)).returning();
+    return updatedPost;
   }
 
   async deletePost(id: number): Promise<boolean> {
-    const [post] = await db.delete(posts).where(eq(posts.id, id)).returning();
-    return !!post;
+    const result = await db.delete(posts).where(eq(posts.id, id));
+    return result.rowCount > 0;
   }
 
   async searchPosts(query: string): Promise<Post[]> {
-    const lowercaseQuery = query.toLowerCase();
-    return await db
-      .select()
-      .from(posts)
-      .where(
-        or(
-          sql`lower(${posts.title}) like ${`%${lowercaseQuery}%`}`,
-          sql`lower(${posts.content}) like ${`%${lowercaseQuery}%`}`
-        )
+    return await db.select().from(posts).where(
+      or(
+        sql`${posts.title} ILIKE ${`%${query}%`}`,
+        sql`${posts.content} ILIKE ${`%${query}%`}`
       )
-      .orderBy(posts.createdAt);
+    );
   }
 
-  // Existing comment methods
   async getPostComments(postId: number): Promise<Comment[]> {
-    return await db
-      .select()
-      .from(comments)
-      .where(eq(comments.postId, postId))
-      .orderBy(comments.createdAt);
+    return await db.select().from(comments).where(eq(comments.postId, postId));
   }
 
-  async createComment(insertComment: InsertComment & { userId: number }): Promise<Comment> {
-    const [comment] = await db.insert(comments).values(insertComment).returning();
-    return comment;
+  async createComment(comment: InsertComment & { userId: number }): Promise<Comment> {
+    const [newComment] = await db.insert(comments).values(comment).returning();
+    return newComment;
   }
 
   async deleteComment(id: number): Promise<boolean> {
-    const [comment] = await db
-      .delete(comments)
-      .where(eq(comments.id, id))
-      .returning();
-    return !!comment;
+    const result = await db.delete(comments).where(eq(comments.id, id));
+    return result.rowCount > 0;
   }
 
-  // Existing category methods
   async getAllCategories(): Promise<Category[]> {
-    return await db.select().from(categories).orderBy(categories.name);
+    return await db.select().from(categories);
   }
 
   async getCategory(id: number): Promise<Category | undefined> {
-    const [category] = await db
-      .select()
-      .from(categories)
-      .where(eq(categories.id, id));
+    const [category] = await db.select().from(categories).where(eq(categories.id, id));
     return category;
   }
 
   async createCategory(category: InsertCategory): Promise<Category> {
-    const [newCategory] = await db
-      .insert(categories)
-      .values(category)
-      .returning();
+    const [newCategory] = await db.insert(categories).values(category).returning();
     return newCategory;
   }
 
-  // Existing tag methods
   async getAllTags(): Promise<Tag[]> {
-    return await db.select().from(tags).orderBy(tags.name);
+    return await db.select().from(tags);
   }
 
   async getTag(id: number): Promise<Tag | undefined> {
@@ -211,12 +162,12 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: tags.id,
         name: tags.name,
-        createdAt: tags.createdAt,
       })
       .from(postsTags)
-      .innerJoin(tags, eq(postsTags.tagId, tags.id))
+      .innerJoin(tags, eq(tags.id, postsTags.tagId))
       .where(eq(postsTags.postId, postId));
   }
 }
 
+// Create and export database storage instance
 export const storage = new DatabaseStorage();

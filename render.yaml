@@ -1,11 +1,14 @@
 services:
   - type: web
-    name: personal-blog-site
+    name: personal-blog
     env: node
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    startCommand: npm run start
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false # This will be set manually in Render dashboard
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+    healthCheckPath: /api/health

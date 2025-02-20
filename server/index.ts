@@ -3,10 +3,40 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import cors from "cors";
+import session from "express-session";
+import { sessionStore } from "./storage";
+import { logger } from "./logger";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "your-secret-key",
+    resave: false,
+    saveUninitialized: false,
+    store: sessionStore,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  })
+);
+
+app.use(cors({
+  origin: process.env.NODE_ENV === "production" 
+    ? "https://kiplangatkorir.github.io" 
+    : "http://localhost:3000",
+  credentials: true
+}));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -50,7 +80,22 @@ app.use((req, res, next) => {
     if (process.env.NODE_ENV !== "production") {
       await setupVite(app, server);
     } else {
-      serveStatic(app);
+      const buildPath = resolve(__dirname, "..", "dist");
+      
+      try {
+        app.use(express.static(buildPath));
+        
+        // Serve index.html for any non-API routes in production
+        app.get("*", (req, res) => {
+          if (!req.path.startsWith("/api")) {
+            res.sendFile(resolve(buildPath, "index.html"));
+          }
+        });
+        
+        logger.info(`Serving static files from: ${buildPath}`);
+      } catch (error) {
+        logger.error(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
     }
 
     const port = process.env.PORT || 3000;

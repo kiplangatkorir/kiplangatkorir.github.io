@@ -52,6 +52,11 @@ export async function registerRoutes(app: Express) {
   // Serve uploaded files statically
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
+  // Health check endpoint
+  app.get("/health", (_, res) => {
+    res.status(200).json({ status: "ok" });
+  });
+
   // New image upload endpoint
   app.post("/api/upload", requireAuth, upload.single('image'), (req, res) => {
     if (!req.file) {

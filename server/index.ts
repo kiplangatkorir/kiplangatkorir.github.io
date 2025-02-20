@@ -80,7 +80,7 @@ app.use((req, res, next) => {
     if (process.env.NODE_ENV !== "production") {
       await setupVite(app, server);
     } else {
-      const buildPath = resolve(__dirname, "..", "dist");
+      const buildPath = resolve(__dirname, "..", "..", "dist");
       
       try {
         app.use(express.static(buildPath));

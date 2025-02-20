@@ -1,9 +1,9 @@
+import { db } from "./db-new";
 import { users, posts, comments, categories, tags, postsTags, type User, type InsertUser, type Post, type InsertPost, type Comment, type InsertComment, type Category, type InsertCategory, type Tag, type InsertTag } from "@shared/schema";
-import { db } from "./db";
 import { eq, or, sql, and } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { pool } from "./db";
+import { pool } from "./db-new";
 
 const PostgresSessionStore = connectPg(session);
 

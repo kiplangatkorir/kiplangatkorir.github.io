@@ -1,193 +1,190 @@
-import type { Express } from "express";
-import { createServer } from "http";
+import express, { Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
-import { insertPostSchema, insertCommentSchema, insertCategorySchema, insertTagSchema } from "@shared/schema";
-import { setupAuth } from "./auth";
 import multer from "multer";
 import path from "path";
-import fs from "fs";
-import express from 'express';
-import { router } from "./routes";
+import { logger } from "./logger";
+import 'express-session';
 
-function requireAuth(req: Express.Request, res: Express.Response, next: Express.NextFunction) {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  next();
-}
+// Create a new router instance
+const apiRouter = express.Router();
 
-// Configure multer for handling file uploads
+// Configure multer for file uploads
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const uploadDir = path.join(process.cwd(), "uploads");
-      // Create uploads directory if it doesn't exist
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-      // Generate unique filename
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-  }),
+  dest: path.join(process.cwd(), "uploads"),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-  fileFilter: (req, file, cb) => {
-    // Accept only image files
-    if (!file.mimetype.startsWith('image/')) {
-      cb(new Error('Only image files are allowed'));
-      return;
+});
+
+// Authentication middleware
+const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!req.session || typeof req.session.userId === 'undefined') {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  next();
+};
+
+// Auth routes
+apiRouter.post("/register", async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+    const existingUser = await storage.getUserByUsername(username);
+    
+    if (existingUser) {
+      return res.status(400).json({ message: "Username already exists" });
     }
-    cb(null, true);
+    
+    const user = await storage.createUser({ username, password });
+    if (req.session) {
+      req.session.userId = user.id;
+    }
+    res.json(user);
+  } catch (error) {
+    logger.error(`Registration error: ${error}`);
+    res.status(500).json({ message: "Error creating user" });
   }
 });
 
-export async function registerRoutes(app: Express) {
-  // Set up authentication routes and middleware
-  setupAuth(app);
-
-  // Serve uploaded files statically
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-
-  // Health check endpoint
-  app.get("/health", (_, res) => {
-    res.status(200).json({ status: "ok" });
-  });
-
-  // New image upload endpoint
-  app.post("/api/upload", requireAuth, upload.single('image'), (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+apiRouter.post("/login", async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+    const user = await storage.getUserByUsername(username);
+    
+    if (!user || user.password !== password) {
+      return res.status(401).json({ message: "Invalid credentials" });
     }
+    
+    if (req.session) {
+      req.session.userId = user.id;
+    }
+    res.json(user);
+  } catch (error) {
+    logger.error(`Login error: ${error}`);
+    res.status(500).json({ message: "Error logging in" });
+  }
+});
 
-    // Return the URL for the uploaded file
-    const fileUrl = `/uploads/${req.file.filename}`;
-    res.json({ url: fileUrl });
-  });
+apiRouter.post("/logout", (req: Request, res: Response) => {
+  if (req.session) {
+    req.session.destroy((err) => {
+      if (err) {
+        logger.error(`Logout error: ${err}`);
+        return res.status(500).json({ message: "Error logging out" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  } else {
+    res.json({ message: "Logged out successfully" });
+  }
+});
 
-  // Existing post routes
-  app.get("/api/posts", async (_req, res) => {
+// Post routes
+apiRouter.get("/posts", async (_req: Request, res: Response) => {
+  try {
     const posts = await storage.getAllPosts();
     res.json(posts);
-  });
+  } catch (error) {
+    logger.error(`Error fetching posts: ${error}`);
+    res.status(500).json({ message: "Error fetching posts" });
+  }
+});
 
-  app.get("/api/posts/search", async (req, res) => {
-    const query = req.query.q as string;
-    if (!query) return res.json([]);
-    const posts = await storage.searchPosts(query);
-    res.json(posts);
-  });
-
-  app.get("/api/posts/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const post = await storage.getPost(id);
-    if (!post) return res.status(404).json({ message: "Post not found" });
-
-    // Get post tags
-    const tags = await storage.getPostTags(id);
-    res.json({ ...post, tags });
-  });
-
-  // Protected route
-  app.post("/api/posts", requireAuth, async (req, res) => {
-    const result = insertPostSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({ message: "Invalid post data" });
+apiRouter.get("/posts/:id", async (req: Request, res: Response) => {
+  try {
+    const post = await storage.getPost(Number(req.params.id));
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
     }
-    const post = await storage.createPost({
-      ...result.data,
-      userId: req.user!.id,
-    });
-    res.status(201).json(post);
-  });
-
-  app.put("/api/posts/:id", async (req, res) => {
-    const result = insertPostSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({ message: "Invalid post data" });
-    }
-    const id = parseInt(req.params.id);
-    const post = await storage.updatePost(id, result.data);
-    if (!post) return res.status(404).json({ message: "Post not found" });
     res.json(post);
-  });
+  } catch (error) {
+    logger.error(`Error fetching post: ${error}`);
+    res.status(500).json({ message: "Error fetching post" });
+  }
+});
 
-  app.delete("/api/posts/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const success = await storage.deletePost(id);
-    if (!success) return res.status(404).json({ message: "Post not found" });
-    res.status(204).end();
-  });
-
-  // Existing comment routes
-  app.get("/api/posts/:postId/comments", async (req, res) => {
-    const postId = parseInt(req.params.postId);
-    const comments = await storage.getPostComments(postId);
-    res.json(comments);
-  });
-
-  // Protected route
-  app.post("/api/posts/:postId/comments", requireAuth, async (req, res) => {
-    const postId = parseInt(req.params.postId);
-    const result = insertCommentSchema.safeParse({ ...req.body, postId });
-    if (!result.success) {
-      return res.status(400).json({ message: "Invalid comment data" });
-    }
-    const comment = await storage.createComment({
-      ...result.data,
-      userId: req.user!.id,
+apiRouter.post("/posts", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { title, content } = req.body;
+    const post = await storage.createPost({
+      title,
+      content,
+      userId: req.session.userId,
     });
-    res.status(201).json(comment);
-  });
+    res.json(post);
+  } catch (error) {
+    logger.error(`Error creating post: ${error}`);
+    res.status(500).json({ message: "Error creating post" });
+  }
+});
 
-  app.delete("/api/comments/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const success = await storage.deleteComment(id);
-    if (!success) return res.status(404).json({ message: "Comment not found" });
-    res.status(204).end();
-  });
-
-  // New category routes
-  app.get("/api/categories", async (_req, res) => {
-    const categories = await storage.getAllCategories();
-    res.json(categories);
-  });
-
-  app.post("/api/categories", async (req, res) => {
-    const result = insertCategorySchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({ message: "Invalid category data" });
+apiRouter.put("/posts/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { title, content } = req.body;
+    const post = await storage.updatePost(Number(req.params.id), {
+      title,
+      content,
+    });
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
     }
-    const category = await storage.createCategory(result.data);
-    res.status(201).json(category);
-  });
+    res.json(post);
+  } catch (error) {
+    logger.error(`Error updating post: ${error}`);
+    res.status(500).json({ message: "Error updating post" });
+  }
+});
 
-  // New tag routes
-  app.get("/api/tags", async (_req, res) => {
-    const tags = await storage.getAllTags();
-    res.json(tags);
-  });
-
-  app.post("/api/tags", async (req, res) => {
-    const result = insertTagSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({ message: "Invalid tag data" });
+apiRouter.delete("/posts/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const success = await storage.deletePost(Number(req.params.id));
+    if (!success) {
+      return res.status(404).json({ message: "Post not found" });
     }
-    const tag = await storage.createTag(result.data);
-    res.status(201).json(tag);
-  });
+    res.json({ message: "Post deleted successfully" });
+  } catch (error) {
+    logger.error(`Error deleting post: ${error}`);
+    res.status(500).json({ message: "Error deleting post" });
+  }
+});
 
-  app.get("/api/posts/:postId/tags", async (req, res) => {
-    const postId = parseInt(req.params.postId);
-    const tags = await storage.getPostTags(postId);
-    res.json(tags);
-  });
+// Comment routes
+apiRouter.get("/posts/:postId/comments", async (req: Request, res: Response) => {
+  try {
+    const comments = await storage.getPostComments(Number(req.params.postId));
+    res.json(comments);
+  } catch (error) {
+    logger.error(`Error fetching comments: ${error}`);
+    res.status(500).json({ message: "Error fetching comments" });
+  }
+});
 
-  app.use('/api', router);
+apiRouter.post("/posts/:postId/comments", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { content } = req.body;
+    const comment = await storage.createComment({
+      content,
+      postId: Number(req.params.postId),
+      userId: req.session.userId,
+    });
+    res.json(comment);
+  } catch (error) {
+    logger.error(`Error creating comment: ${error}`);
+    res.status(500).json({ message: "Error creating comment" });
+  }
+});
 
-  return createServer(app);
-}
+apiRouter.delete("/comments/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const success = await storage.deleteComment(Number(req.params.id));
+    if (!success) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+    res.json({ message: "Comment deleted successfully" });
+  } catch (error) {
+    logger.error(`Error deleting comment: ${error}`);
+    res.status(500).json({ message: "Error deleting comment" });
+  }
+});
+
+// Export the router
+export { apiRouter as router };

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: personal-blog
+    name: korir-blog
     env: node
     nodeVersion: 18
     buildCommand: npm install && npm run build

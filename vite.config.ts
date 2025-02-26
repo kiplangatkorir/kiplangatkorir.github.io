@@ -14,7 +14,7 @@ export default defineConfig({
     runtimeErrorOverlay(),
     themePlugin(),
   ],
-  base: "/korir.github.io/",
+  base: "/",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),

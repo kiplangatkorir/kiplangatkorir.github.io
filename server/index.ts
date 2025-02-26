@@ -32,7 +32,7 @@ app.use(
 app.use(express.json());
 app.use(cors({
   origin: process.env.NODE_ENV === "production" 
-    ? "https://personal-blog.onrender.com" 
+    ? "https://kiplangatkorir.github.io" 
     : "http://localhost:3000",
   credentials: true
 }));

@@ -10,17 +10,21 @@ import Post from "@/pages/post";
 import Editor from "@/pages/editor";
 import AuthPage from "@/pages/auth-page";
 import NotFound from "@/pages/not-found";
+import Profile from "@/pages/profile";
+import Settings from "@/pages/settings";
 
 function Router() {
   return (
     <div className="min-h-screen bg-background">
       <NavBar />
-      <main className="container mx-auto px-4 py-8">
+      <main>
         <Switch>
-          <ProtectedRoute path="/" component={Home} />
-          <ProtectedRoute path="/posts/:id" component={Post} />
+          <Route path="/" component={Home} />
+          <Route path="/posts/:id" component={Post} />
           <ProtectedRoute path="/new" component={Editor} />
           <ProtectedRoute path="/edit/:id" component={Editor} />
+          <Route path="/profile/:id" component={Profile} />
+          <ProtectedRoute path="/settings" component={Settings} />
           <Route path="/auth" component={AuthPage} />
           <Route component={NotFound} />
         </Switch>

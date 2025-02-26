@@ -37,8 +37,13 @@ app.use(cors({
   credentials: true
 }));
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // API routes
-app.use("/api", router);
+app.use("/api", router)
 
 // Serve static files in production
 if (process.env.NODE_ENV === "production") {

@@ -110,14 +110,35 @@ apiRouter.get("/posts/:id", async (req: Request, res: Response) => {
 
 apiRouter.post("/posts", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { title, content } = req.body;
-    // We know userId exists because of requireAuth middleware
-    const userId = req.session.userId!;
+    const userId = req.session.userId;
+    const {
+      title,
+      subtitle,
+      content,
+      coverImageUrl,
+      excerpt,
+      published,
+      categoryId,
+      tagIds,
+    } = req.body;
+
+    // Calculate reading time (rough estimate: 200 words per minute)
+    const wordCount = content.split(/\s+/).length;
+    const readingTime = Math.ceil(wordCount / 200);
+
     const post = await storage.createPost({
       title,
+      subtitle,
       content,
+      coverImageUrl,
+      excerpt: excerpt || content.substring(0, 200) + "...", // Auto-generate excerpt if not provided
+      readingTime,
+      published: published ?? false,
+      categoryId,
       userId,
+      tagIds,
     });
+
     res.json(post);
   } catch (error) {
     logger.error(`Error creating post: ${error}`);
@@ -193,6 +214,111 @@ apiRouter.delete("/comments/:id", requireAuth, async (req: Request, res: Respons
   } catch (error) {
     logger.error(`Error deleting comment: ${error}`);
     res.status(500).json({ message: "Error deleting comment" });
+  }
+});
+
+// User profile routes
+apiRouter.get("/users/:id", async (req: Request, res: Response) => {
+  try {
+    const user = await storage.getUser(parseInt(req.params.id));
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    // Don't send password in response
+    const { password, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    logger.error(`Error fetching user: ${error}`);
+    res.status(500).json({ message: "Error fetching user" });
+  }
+});
+
+apiRouter.put("/users/:id", requireAuth, async (req: Request, res: Response) => {
+  try {
+    if (req.session.userId !== parseInt(req.params.id)) {
+      return res.status(403).json({ message: "Unauthorized to update this profile" });
+    }
+    
+    const { name, bio, avatarUrl, twitterHandle, websiteUrl } = req.body;
+    const updatedUser = await storage.updateUser(parseInt(req.params.id), {
+      name,
+      bio,
+      avatarUrl,
+      twitterHandle,
+      websiteUrl,
+    });
+    
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const { password, ...userWithoutPassword } = updatedUser;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    logger.error(`Error updating user: ${error}`);
+    res.status(500).json({ message: "Error updating user" });
+  }
+});
+
+// Follow/Unfollow routes
+apiRouter.post("/users/:id/follow", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const followerId = req.session.userId;
+    const followingId = parseInt(req.params.id);
+    
+    if (followerId === followingId) {
+      return res.status(400).json({ message: "Cannot follow yourself" });
+    }
+    
+    await storage.createFollow({ followerId, followingId });
+    res.json({ message: "Successfully followed user" });
+  } catch (error) {
+    logger.error(`Error following user: ${error}`);
+    res.status(500).json({ message: "Error following user" });
+  }
+});
+
+apiRouter.delete("/users/:id/follow", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const followerId = req.session.userId;
+    const followingId = parseInt(req.params.id);
+    
+    await storage.deleteFollow(followerId, followingId);
+    res.json({ message: "Successfully unfollowed user" });
+  } catch (error) {
+    logger.error(`Error unfollowing user: ${error}`);
+    res.status(500).json({ message: "Error unfollowing user" });
+  }
+});
+
+// Post routes with claps
+apiRouter.post("/posts/:id/clap", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = req.session.userId;
+    const postId = parseInt(req.params.id);
+    const count = req.body.count || 1;
+    
+    const clap = await storage.createOrUpdateClap({
+      userId,
+      postId,
+      count,
+    });
+    
+    res.json(clap);
+  } catch (error) {
+    logger.error(`Error clapping for post: ${error}`);
+    res.status(500).json({ message: "Error clapping for post" });
+  }
+});
+
+// Get featured posts
+apiRouter.get("/posts/featured", async (req: Request, res: Response) => {
+  try {
+    const featuredPosts = await storage.getFeaturedPosts();
+    res.json(featuredPosts);
+  } catch (error) {
+    logger.error(`Error fetching featured posts: ${error}`);
+    res.status(500).json({ message: "Error fetching featured posts" });
   }
 });
 

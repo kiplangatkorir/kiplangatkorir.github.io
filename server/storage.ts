@@ -1,6 +1,6 @@
-import { users, posts, comments, categories, tags, postsTags, type User, type InsertUser, type Post, type InsertPost, type Comment, type InsertComment, type Category, type InsertCategory, type Tag, type InsertTag } from "@shared/schema";
+import { users, posts, comments, categories, tags, postsTags, type User, type InsertUser, type Post, type InsertPost, type Comment, type InsertComment, type Category, type InsertCategory, type Tag, type InsertTag, type Follow, type Clap } from "@shared/schema";
 import { db } from "./db";
-import { eq, or, sql, and } from "drizzle-orm";
+import { eq, or, sql, and, desc } from "drizzle-orm";
 import session from "express-session";
 import { logger } from './logger';
 
@@ -39,6 +39,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, updates: Partial<InsertUser>): Promise<User | undefined>;
 
   // Post methods
   getAllPosts(): Promise<Post[]>;
@@ -47,6 +48,8 @@ export interface IStorage {
   updatePost(id: number, post: InsertPost): Promise<Post | undefined>;
   deletePost(id: number): Promise<boolean>;
   searchPosts(query: string): Promise<Post[]>;
+  getPostWithDetails(id: number): Promise<Post & { clapsCount: number; author: User } | undefined>;
+  getFeaturedPosts(): Promise<Post[]>;
 
   // Comment methods
   getPostComments(postId: number): Promise<Comment[]>;
@@ -63,6 +66,15 @@ export interface IStorage {
   getTag(id: number): Promise<Tag | undefined>;
   createTag(tag: InsertTag): Promise<Tag>;
   getPostTags(postId: number): Promise<Tag[]>;
+
+  // Follow methods
+  createFollow(follow: { followerId: number; followingId: number }): Promise<Follow>;
+  deleteFollow(followerId: number, followingId: number): Promise<boolean>;
+  getFollowers(userId: number): Promise<User[]>;
+  getFollowing(userId: number): Promise<User[]>;
+
+  // Clap methods
+  createOrUpdateClap(clap: { userId: number; postId: number; count?: number }): Promise<Clap>;
 }
 
 // Database Storage Implementation
@@ -79,6 +91,14 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(user: InsertUser): Promise<User> {
     const result = await db.insert(users).values(user).returning();
+    return result[0];
+  }
+
+  async updateUser(id: number, updates: Partial<InsertUser>): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
     return result[0];
   }
 
@@ -167,6 +187,111 @@ export class DatabaseStorage implements IStorage {
       .from(postsTags)
       .innerJoin(tags, eq(tags.id, postsTags.tagId))
       .where(eq(postsTags.postId, postId));
+  }
+
+  async createFollow(follow: { followerId: number; followingId: number }): Promise<Follow> {
+    const result = await db.insert(follows).values(follow).returning();
+    return result[0];
+  }
+
+  async deleteFollow(followerId: number, followingId: number): Promise<boolean> {
+    const result = await db.delete(follows)
+      .where(and(
+        eq(follows.followerId, followerId),
+        eq(follows.followingId, followingId)
+      ));
+    return result.rowCount > 0;
+  }
+
+  async getFollowers(userId: number): Promise<User[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        bio: users.bio,
+        avatarUrl: users.avatarUrl,
+        createdAt: users.createdAt,
+      })
+      .from(follows)
+      .innerJoin(users, eq(follows.followerId, users.id))
+      .where(eq(follows.followingId, userId));
+    return result;
+  }
+
+  async getFollowing(userId: number): Promise<User[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        bio: users.bio,
+        avatarUrl: users.avatarUrl,
+        createdAt: users.createdAt,
+      })
+      .from(follows)
+      .innerJoin(users, eq(follows.followingId, users.id))
+      .where(eq(follows.followerId, userId));
+    return result;
+  }
+
+  async createOrUpdateClap(clap: { userId: number; postId: number; count?: number }): Promise<Clap> {
+    const existingClap = await db
+      .select()
+      .from(claps)
+      .where(and(
+        eq(claps.userId, clap.userId),
+        eq(claps.postId, clap.postId)
+      ));
+
+    if (existingClap.length > 0) {
+      const newCount = (existingClap[0].count || 0) + (clap.count || 1);
+      const result = await db.update(claps)
+        .set({ count: newCount, updatedAt: new Date() })
+        .where(and(
+          eq(claps.userId, clap.userId),
+          eq(claps.postId, clap.postId)
+        ))
+        .returning();
+      return result[0];
+    }
+
+    const result = await db.insert(claps)
+      .values({
+        userId: clap.userId,
+        postId: clap.postId,
+        count: clap.count || 1,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async getFeaturedPosts(): Promise<Post[]> {
+    return db
+      .select()
+      .from(posts)
+      .where(and(
+        eq(posts.published, true),
+        sql`${posts.featuredAt} IS NOT NULL`
+      ))
+      .orderBy(desc(posts.featuredAt))
+      .limit(10);
+  }
+
+  async getPostWithDetails(id: number): Promise<Post & { clapsCount: number; author: User } | undefined> {
+    const result = await db
+      .select({
+        ...posts,
+        clapsCount: sql<number>`COALESCE(SUM(${claps.count}), 0)`,
+        author: users,
+      })
+      .from(posts)
+      .leftJoin(claps, eq(posts.id, claps.postId))
+      .innerJoin(users, eq(posts.userId, users.id))
+      .where(eq(posts.id, id))
+      .groupBy(posts.id, users.id);
+    
+    return result[0];
   }
 }
 

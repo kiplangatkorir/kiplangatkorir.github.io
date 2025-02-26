@@ -4,9 +4,6 @@ import multer from "multer";
 import path from "path";
 import { logger } from "./logger";
 import { Session } from 'express-session';
-import { StorageService } from './storage-service';
-
-const storageService = new StorageService();
 
 // Extend Session type to include our custom properties
 declare module 'express-session' {
@@ -18,19 +15,12 @@ declare module 'express-session' {
 // Create a new router instance
 const apiRouter = express.Router();
 
-// Configure multer for memory storage
+// Configure multer for file uploads
 const upload = multer({
-  storage: multer.memoryStorage(),
+  dest: path.join(process.cwd(), "uploads"),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-  fileFilter: (req, file, cb) => {
-    // Accept images only
-    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/i)) {
-      return cb(new Error('Only image files are allowed!'));
-    }
-    cb(null, true);
-  }
 });
 
 // Authentication middleware
@@ -329,53 +319,6 @@ apiRouter.get("/posts/featured", async (req: Request, res: Response) => {
   } catch (error) {
     logger.error(`Error fetching featured posts: ${error}`);
     res.status(500).json({ message: "Error fetching featured posts" });
-  }
-});
-
-// Serve static files from uploads directory
-apiRouter.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-
-// File upload routes
-apiRouter.post("/upload", requireAuth, upload.single('image'), async (req: Request, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-
-    const fileUrl = await storageService.uploadFile(req.file);
-    res.json({ url: fileUrl });
-  } catch (error) {
-    logger.error(`Error uploading file: ${error}`);
-    res.status(500).json({ message: "Error uploading file" });
-  }
-});
-
-// Delete uploaded file
-apiRouter.delete("/upload/:filename", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const fileUrl = `/uploads/${req.params.filename}`;
-    await storageService.deleteFile(fileUrl);
-    res.json({ message: "File deleted successfully" });
-  } catch (error) {
-    logger.error(`Error deleting file: ${error}`);
-    res.status(500).json({ message: "Error deleting file" });
-  }
-});
-
-// Get signed URL for client-side upload
-apiRouter.post("/upload/signed-url", requireAuth, async (req: Request, res: Response) => {
-  try {
-    const { fileName, contentType } = req.body;
-    
-    if (!fileName || !contentType) {
-      return res.status(400).json({ message: "fileName and contentType are required" });
-    }
-
-    const signedUrl = await storageService.getSignedUploadUrl(fileName, contentType);
-    res.json({ signedUrl });
-  } catch (error) {
-    logger.error(`Error generating signed URL: ${error}`);
-    res.status(500).json({ message: "Error generating upload URL" });
   }
 });
 

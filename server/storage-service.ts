@@ -6,8 +6,8 @@ import { logger } from './logger';
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
 // Ensure uploads directory exists
-fs.mkdir(UPLOAD_DIR, { recursive: true }).catch(err => {
-  logger.error('Error creating uploads directory:', err);
+fs.mkdir(UPLOAD_DIR, { recursive: true }).catch(error => {
+  logger.error(`Error creating uploads directory: ${error.message}`);
 });
 
 export class StorageService {
@@ -30,7 +30,7 @@ export class StorageService {
       logger.info(`File uploaded successfully: ${fileName}`);
       return fileUrl;
     } catch (error) {
-      logger.error('Error uploading file:', error);
+      logger.error(`Error uploading file: ${error instanceof Error ? error.message : error}`);
       throw new Error('Failed to upload file');
     }
   }
@@ -42,7 +42,7 @@ export class StorageService {
       await fs.unlink(filePath);
       logger.info(`File deleted successfully: ${fileName}`);
     } catch (error) {
-      logger.error('Error deleting file:', error);
+      logger.error(`Error deleting file: ${error instanceof Error ? error.message : error}`);
       throw new Error('Failed to delete file');
     }
   }

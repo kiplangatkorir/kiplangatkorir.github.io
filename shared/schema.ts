@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, primaryKey, boolean } from "drizzle-orm/pg-core"; 
+import { pgTable, text, serial, timestamp, integer, primaryKey, boolean, uuid } from "drizzle-orm/pg-core"; 
 import { createInsertSchema } from "drizzle-zod"; 
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -47,7 +47,7 @@ export const posts = pgTable("posts", {
   published: boolean("published").default(false).notNull(),
   featuredAt: timestamp("featured_at"),
   categoryId: integer("category_id").references(() => categories.id),
-  userId: integer("user_id").notNull().references(() => users.id),
+  authorId: integer("author_id").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -81,24 +81,15 @@ export const claps = pgTable("claps", {
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   posts: many(posts),
-  comments: many(comments),
-  follows: many(follows, { foreignKey: 'followerId' }),
-  followers: many(follows, { foreignKey: 'followingId' }),
-  claps: many(claps),
+  followers: many(follows, { relationName: "followers" }),
+  following: many(follows, { relationName: "following" })
 }));
 
-export const postsRelations = relations(posts, ({ many, one }) => ({
-  comments: many(comments),
-  tags: many(postsTags),
-  category: one(categories, {
-    fields: [posts.categoryId],
-    references: [categories.id],
-  }),
+export const postsRelations = relations(posts, ({ one }) => ({
   author: one(users, {
-    fields: [posts.userId],
+    fields: [posts.authorId],
     references: [users.id],
-  }),
-  claps: many(claps),
+  })
 }));
 
 export const categoriesRelations = relations(categories, ({ many }) => ({
@@ -139,7 +130,7 @@ export const followsRelations = relations(follows, ({ one }) => ({
   following: one(users, {
     fields: [follows.followingId],
     references: [users.id],
-  }),
+  })
 }));
 
 export const clapsRelations = relations(claps, ({ one }) => ({
@@ -150,7 +141,7 @@ export const clapsRelations = relations(claps, ({ one }) => ({
   post: one(posts, {
     fields: [claps.postId],
     references: [posts.id],
-  }),
+  })
 }));
 
 // Schemas for data validation
@@ -181,7 +172,7 @@ export const insertPostSchema = createInsertSchema(posts)
     id: true,
     createdAt: true,
     updatedAt: true,
-    userId: true,
+    authorId: true,
   })
   .extend({
     title: z.string().min(1).max(100),

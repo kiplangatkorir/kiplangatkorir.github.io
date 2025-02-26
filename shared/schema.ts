@@ -5,7 +5,7 @@ import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
+  email: text("email").notNull().unique(),
   password: text("password").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -101,7 +101,7 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users)
   .omit({ id: true, createdAt: true })
   .extend({
-    username: z.string().min(3).max(20),
+    email: z.string().email(),
     password: z.string().min(6),
   });
 

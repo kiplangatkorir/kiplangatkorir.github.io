@@ -34,14 +34,21 @@ const requireAuth = (req: Request, res: Response, next: NextFunction) => {
 // Auth routes
 apiRouter.post("/register", async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body;
-    const existingUser = await storage.getUserByUsername(username);
+    const { email, password } = req.body;
     
-    if (existingUser) {
-      return res.status(400).json({ message: "Username already exists" });
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "Invalid email format" });
     }
     
-    const user = await storage.createUser({ username, password });
+    const existingUser = await storage.getUserByEmail(email);
+    
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
+    }
+    
+    const user = await storage.createUser({ email, password });
     req.session.userId = user.id;
     res.json(user);
   } catch (error) {
@@ -52,8 +59,8 @@ apiRouter.post("/register", async (req: Request, res: Response) => {
 
 apiRouter.post("/login", async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body;
-    const user = await storage.getUserByUsername(username);
+    const { email, password } = req.body;
+    const user = await storage.getUserByEmail(email);
     
     if (!user || user.password !== password) {
       return res.status(401).json({ message: "Invalid credentials" });

@@ -37,7 +37,7 @@ export const sessionStore = new MemoryStore();
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
 
   // Post methods
@@ -68,18 +68,18 @@ export interface IStorage {
 // Database Storage Implementation
 export class DatabaseStorage implements IStorage {
   async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email));
+    return result[0];
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const [newUser] = await db.insert(users).values(user).returning();
-    return newUser;
+    const result = await db.insert(users).values(user).returning();
+    return result[0];
   }
 
   async getAllPosts(): Promise<Post[]> {
@@ -87,18 +87,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPost(id: number): Promise<Post | undefined> {
-    const [post] = await db.select().from(posts).where(eq(posts.id, id));
-    return post;
+    const result = await db.select().from(posts).where(eq(posts.id, id));
+    return result[0];
   }
 
   async createPost(post: InsertPost & { userId: number }): Promise<Post> {
-    const [newPost] = await db.insert(posts).values(post).returning();
-    return newPost;
+    const result = await db.insert(posts).values(post).returning();
+    return result[0];
   }
 
   async updatePost(id: number, post: InsertPost): Promise<Post | undefined> {
-    const [updatedPost] = await db.update(posts).set(post).where(eq(posts.id, id)).returning();
-    return updatedPost;
+    const result = await db.update(posts).set(post).where(eq(posts.id, id)).returning();
+    return result[0];
   }
 
   async deletePost(id: number): Promise<boolean> {
@@ -120,8 +120,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createComment(comment: InsertComment & { userId: number }): Promise<Comment> {
-    const [newComment] = await db.insert(comments).values(comment).returning();
-    return newComment;
+    const result = await db.insert(comments).values(comment).returning();
+    return result[0];
   }
 
   async deleteComment(id: number): Promise<boolean> {
@@ -134,13 +134,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCategory(id: number): Promise<Category | undefined> {
-    const [category] = await db.select().from(categories).where(eq(categories.id, id));
-    return category;
+    const result = await db.select().from(categories).where(eq(categories.id, id));
+    return result[0];
   }
 
   async createCategory(category: InsertCategory): Promise<Category> {
-    const [newCategory] = await db.insert(categories).values(category).returning();
-    return newCategory;
+    const result = await db.insert(categories).values(category).returning();
+    return result[0];
   }
 
   async getAllTags(): Promise<Tag[]> {
@@ -148,13 +148,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTag(id: number): Promise<Tag | undefined> {
-    const [tag] = await db.select().from(tags).where(eq(tags.id, id));
-    return tag;
+    const result = await db.select().from(tags).where(eq(tags.id, id));
+    return result[0];
   }
 
   async createTag(tag: InsertTag): Promise<Tag> {
-    const [newTag] = await db.insert(tags).values(tag).returning();
-    return newTag;
+    const result = await db.insert(tags).values(tag).returning();
+    return result[0];
   }
 
   async getPostTags(postId: number): Promise<Tag[]> {

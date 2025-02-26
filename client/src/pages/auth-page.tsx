@@ -11,11 +11,20 @@ import { Redirect } from "wouter";
 
 export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
-  const form = useForm<InsertUser>({
+  const loginForm = useForm<InsertUser>({
     resolver: zodResolver(insertUserSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
+    },
+  });
+
+  const registerForm = useForm<InsertUser>({
+    resolver: zodResolver(insertUserSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      name: "",
     },
   });
 
@@ -41,21 +50,32 @@ export default function AuthPage() {
             </TabsList>
 
             <TabsContent value="login">
-              <Form {...form}>
+              <Form {...loginForm}>
                 <form
-                  onSubmit={form.handleSubmit((data) => loginMutation.mutate(data))}
+                  onSubmit={loginForm.handleSubmit((data) => loginMutation.mutate(data))}
                   className="space-y-4"
                 >
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Username</label>
-                    <Input {...form.register("username")} />
+                    <label className="text-sm font-medium">Email</label>
+                    <Input 
+                      type="email"
+                      placeholder="Enter your email"
+                      {...loginForm.register("email")} 
+                    />
+                    {loginForm.formState.errors.email && (
+                      <p className="text-sm text-red-500">{loginForm.formState.errors.email.message}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Password</label>
                     <Input
                       type="password"
-                      {...form.register("password")}
+                      placeholder="Enter your password"
+                      {...loginForm.register("password")}
                     />
+                    {loginForm.formState.errors.password && (
+                      <p className="text-sm text-red-500">{loginForm.formState.errors.password.message}</p>
+                    )}
                   </div>
                   <Button
                     type="submit"
@@ -72,23 +92,45 @@ export default function AuthPage() {
             </TabsContent>
 
             <TabsContent value="register">
-              <Form {...form}>
+              <Form {...registerForm}>
                 <form
-                  onSubmit={form.handleSubmit((data) =>
+                  onSubmit={registerForm.handleSubmit((data) =>
                     registerMutation.mutate(data)
                   )}
                   className="space-y-4"
                 >
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Username</label>
-                    <Input {...form.register("username")} />
+                    <label className="text-sm font-medium">Email</label>
+                    <Input 
+                      type="email"
+                      placeholder="Enter your email"
+                      {...registerForm.register("email")} 
+                    />
+                    {registerForm.formState.errors.email && (
+                      <p className="text-sm text-red-500">{registerForm.formState.errors.email.message}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Password</label>
                     <Input
                       type="password"
-                      {...form.register("password")}
+                      placeholder="Enter your password (min. 6 characters)"
+                      {...registerForm.register("password")}
                     />
+                    {registerForm.formState.errors.password && (
+                      <p className="text-sm text-red-500">{registerForm.formState.errors.password.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Name (Optional)</label>
+                    <Input
+                      type="text"
+                      placeholder="Enter your name"
+                      {...registerForm.register("name")}
+                    />
+                    {registerForm.formState.errors.name && (
+                      <p className="text-sm text-red-500">{registerForm.formState.errors.name.message}</p>
+                    )}
                   </div>
                   <Button
                     type="submit"
@@ -106,18 +148,7 @@ export default function AuthPage() {
           </Tabs>
         </div>
       </div>
-
-      <div className="hidden md:block bg-muted">
-        <div className="h-full flex items-center justify-center p-8">
-          <div className="max-w-md space-y-4">
-            <h2 className="text-2xl font-bold">Share Your Stories</h2>
-            <p className="text-muted-foreground">
-              Join our community and start sharing your thoughts and experiences
-              with readers around the world. Create an account to get started!
-            </p>
-          </div>
-        </div>
-      </div>
+      <div className="hidden md:block bg-muted" />
     </div>
   );
 }

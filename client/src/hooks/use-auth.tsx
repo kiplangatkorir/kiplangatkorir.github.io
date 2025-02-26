@@ -16,7 +16,7 @@ type AuthContextType = {
   registerMutation: ReturnType<typeof useRegisterMutation>;
 };
 
-type LoginData = Pick<InsertUser, "username" | "password">;
+type LoginData = Pick<InsertUser, "email" | "password">;
 
 function useLoginMutation() {
   const { toast } = useToast();
@@ -28,6 +28,10 @@ function useLoginMutation() {
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
     },
     onError: (error: Error) => {
       toast({
